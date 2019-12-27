@@ -8,8 +8,8 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision
 
-from app.utils import imshow, select_n_random, cifar2rgb, three_sample_images, show_image_grid
-from app.cifar10 import ImageData
+from gmcdml.app.utils import imshow, select_n_random, cifar2rgb, three_sample_images, show_image_grid
+from gmcdml.app.cifar10 import ImageData
 
 
 MODEL_PATH = './cifar_net.pth'
