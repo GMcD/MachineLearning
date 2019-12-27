@@ -1,0 +1,16 @@
+version: '3.7'
+
+services:
+  images-nn-base:
+    image: localhost:5000/images-nn-base
+    build:
+      context: base
+      dockerfile: Dockerfile
+
+  images-nn:
+    image: localhost:5000/images-nn
+    build:
+      context: ../app
+      dockerfile: ../containers/app/Dockerfile
+
+
