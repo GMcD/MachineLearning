@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER=7
+VER=8
 
 make package
 git add .

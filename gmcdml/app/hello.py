@@ -1,4 +1,4 @@
 import sys
 
 def hi():
-    print(sys.version)
+    print("Hello from {}.".format(sys.version))
