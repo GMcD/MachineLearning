@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from app.net import Net
+from gmcdml.app.net import Net
 
 
 def sampleNet():

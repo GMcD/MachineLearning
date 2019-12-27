@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 import torchvision
 
-from app.cifar10 import ImageData
+from gmcdml.app.cifar10 import ImageData
 
 PATH = './cifar_net.pth'
 

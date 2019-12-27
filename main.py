@@ -1,4 +1,4 @@
-from app.vehicle import VehicleNet
+from gmcdml.app.vehicle import VehicleNet
 
 if __name__ == '__main__':
     vn = VehicleNet()

@@ -1,7 +1,7 @@
 import torch
 import torchvision
 import torchvision.transforms as transforms
-from app.utils import imshow
+from gmcdml.app.utils import imshow
 
 class ImageData(object):
 
