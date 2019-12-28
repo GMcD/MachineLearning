@@ -160,7 +160,6 @@ class CnvNet(nn.Module):
                 self.classes[i], 100 * class_correct[i] / class_total[i]))
 
 class VehicleNet(object):
-    writer = SummaryWriter(BOARD_PATH)
 
     def setOptimizer(self):
         self.criterion = nn.CrossEntropyLoss()
@@ -174,6 +173,7 @@ class VehicleNet(object):
         self.network = CnvNet()
 
     def __init__(self):
+        self.writer = SummaryWriter(BOARD_PATH)
         self.setNetwork()
         self.setImageData()
         self.setOptimizer()
@@ -199,9 +199,7 @@ class VehicleNet(object):
 
         # write to tensorboard
         self.writer.add_image('Four_Vehicle_Images', img_grid)
-
         self.writer.add_graph(self.network, images)
-        self.writer.close()
 
     def logSampleEmbedding(self, step):
         n = 100
@@ -234,7 +232,6 @@ class VehicleNet(object):
                               metadata=class_labels,
                               label_img=label_images,
                               global_step=step)
-        self.writer.close()
 
     # helper function
     def add_pr_curve_tensorboard(self, class_index, test_probs, test_preds, global_step=0):
@@ -249,7 +246,6 @@ class VehicleNet(object):
                             tensorboard_preds,
                             tensorboard_probs,
                             global_step=global_step)
-        self.writer.close()
 
     def add_precision_recall(self):
         # 1. gets the probability predictions in a test_size x num_classes Tensor
@@ -284,4 +280,5 @@ class VehicleNet(object):
         self.network.testNetworkSet(self.imgData.testloader)
         self.network.classAccuracy(self.imgData.testloader)
         self.add_precision_recall()
+        self.writer.close()
 
