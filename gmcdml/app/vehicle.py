@@ -194,13 +194,12 @@ class VehicleNet(object):
 
         imgs = []
         for image in images:
-            " Np to Tensor "
+            " Np to Tensor and back... "
             timg = transforms.ToTensor()(image)
-            imgs.append(timg)
-        grid_images = torch.stack(imgs)
+            imgs.append(timg.numpy())
 
         # create grid of images
-        img_grid = torchvision.utils.make_grid(grid_images)
+        img_grid = torchvision.utils.make_grid(imgs)
 
         # write to tensorboard
         self.writer.add_image('four_vehicle_images', img_grid)
