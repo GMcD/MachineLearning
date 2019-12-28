@@ -8,7 +8,12 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision
 
-from gmcdml.app.utils import imshow, select_n_random, imadd
+from gmcdml.app.utils import (
+    imshow,
+    select_n_random,
+    imadd,
+    get_global_step,
+    clear_prior_runs )
 from gmcdml.app.cifar10 import ImageData
 
 
@@ -93,17 +98,21 @@ class CnvNet(nn.Module):
                 running_loss += loss.item()
                 if i % 2000 == 1999:  # print every 2000 mini-batches
                     print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
+                    step = epoch * len(trainloader) + i
 
                     # ...log the running loss
                     writer.add_scalar('training loss',
                                       running_loss / 2000,
-                                      epoch * len(trainloader) + i)
+                                      step)
 
                     # ...log a Matplotlib Figure showing the model's predictions on a
                     # random mini-batch
                     writer.add_figure('predictions vs. actuals',
                                       self.plot_classes_preds(inputs, labels),
-                                      global_step=epoch * len(trainloader) + i)
+                                      global_step=step)
+
+                    self.logSampleEmbedding(step)
+
                     running_loss = 0.0
 
         print('Finished Training')
@@ -179,13 +188,15 @@ class VehicleNet(object):
     def saveNetwork(self):
         torch.save(self.network.state_dict(), MODEL_PATH)
 
-    def trainAndReport(self, iterations):
+    def trainAndReport(self, iterations=1, clearlogs=True):
+        if clearlogs:
+            clear_prior_runs(BOARD_PATH)
         self.logSampleImages()
-        self.logSampleEmbedding()
         self.network.trainNetwork(iterations, self.imgData.trainloader, self.optimizer, self.criterion, self.writer)
         self.saveNetwork()
         self.network.testNetworkSet(self.imgData.testloader)
         self.network.classAccuracy(self.imgData.testloader)
+        self.add_precision_recall()
 
     def logSampleImages(self):
 
@@ -205,7 +216,7 @@ class VehicleNet(object):
         self.writer.add_graph(self.network, images)
         self.writer.close()
 
-    def logSampleEmbedding(self):
+    def logSampleEmbedding(self, step):
         n = 100
         # select random images and their target indices
         images, labels = select_n_random(self.imgData.trainset.data, self.imgData.trainset.targets, n)
@@ -233,6 +244,45 @@ class VehicleNet(object):
 
         # log embeddings
         self.writer.add_embedding(features,
-                             metadata=class_labels,
-                             label_img=label_images)
+                              metadata=class_labels,
+                              label_img=label_images,
+                              global_step=step)
         self.writer.close()
+
+    # helper function
+    def add_pr_curve_tensorboard(self, class_index, test_probs, test_preds, global_step=0):
+        '''
+        Takes in a "class_index" from 0 to 9 and plots the corresponding
+        precision-recall curve
+        '''
+        tensorboard_preds = test_preds == class_index
+        tensorboard_probs = test_probs[:, class_index]
+
+        self.writer.add_pr_curve(self.network.classes[class_index],
+                            tensorboard_preds,
+                            tensorboard_probs,
+                            global_step=global_step)
+        self.writer.close()
+
+    def add_precision_recall(self):
+        # 1. gets the probability predictions in a test_size x num_classes Tensor
+        # 2. gets the preds in a test_size Tensor
+        # takes ~10 seconds to run
+        class_probs = []
+        class_preds = []
+        with torch.no_grad():
+            for data in self.imgData.testloader:
+                images, labels = data
+                output = self.network(images)
+                class_probs_batch = [F.softmax(el, dim=0) for el in output]
+                _, class_preds_batch = torch.max(output, 1)
+
+                class_probs.append(class_probs_batch)
+                class_preds.append(class_preds_batch)
+
+        test_probs = torch.cat([torch.stack(batch) for batch in class_probs])
+        test_preds = torch.cat(class_preds)
+
+        # plot all the pr curves
+        for i in range(len(self.network.classes)):
+            self.add_pr_curve_tensorboard(i, test_probs, test_preds)

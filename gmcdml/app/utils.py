@@ -1,5 +1,6 @@
+import functools
 import matplotlib.pyplot as plt
-import os
+import os, glob, shutil
 from PIL import Image
 import numpy as np
 import torch
@@ -98,3 +99,17 @@ def three_different_tensor_images():
     timg2 = torch.tensor(rgb2).reshape(32*32, 3).transpose(1,0).reshape(3,32,32)
     timg3 = torch.tensor(rgb3).reshape(32*32, 3).transpose(1,0).reshape(3,32,32)
     return (timg1, timg2, timg3)
+
+def clear_prior_runs(path):
+    shutil.rmtree(path)
+
+@functools.lru_cache(maxsize=1)
+def get_global_step(path):
+    runs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), path)
+    regexp = "{}/{}".format(runs, "[0-9]*")
+    steps = glob.glob(regexp)
+    if len(steps) == 0:
+        return 0
+    runs = [r.split('/')[-1:][0] for r in steps]
+    last_step = max(runs)
+    return int(last_step) + 1

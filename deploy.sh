@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VER=9
+VER=9.1
 
 make package
 git add .
