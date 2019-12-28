@@ -279,7 +279,7 @@ class VehicleNet(object):
         if clearlogs:
             clear_prior_runs(BOARD_PATH)
         self.logSampleImages()
-        self.logSampleEmbedding()
+        self.logSampleEmbedding(0)
         self.network.trainNetwork(iterations, self.imgData.trainloader, self.optimizer, self.criterion, self.writer)
         self.saveNetwork()
         self.network.testNetworkSet(self.imgData.testloader)
