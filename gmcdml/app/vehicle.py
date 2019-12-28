@@ -195,9 +195,6 @@ class VehicleNet(object):
         # create grid of images
         img_grid = torchvision.utils.make_grid(images)
 
-        # show images
-        imshow(img_grid)
-
         # write to tensorboard
         self.writer.add_image('four_vehicle_images', img_grid)
 
