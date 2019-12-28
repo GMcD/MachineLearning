@@ -6,6 +6,4 @@ set -e
 rm -rf ./runs/*
 python3 main.py
 
-tensorboard --logdir=runs &
-
-
+tensorboard --logdir=runs

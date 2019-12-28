@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='gmcd-ml',
-    version='0.9.8',
+    version='0.9.9',
     url='https://github.com/GMcD/MachineLearning.git',
     author='Gary MacDonald',
     author_email='gary.macdonald@projectscapa.com',

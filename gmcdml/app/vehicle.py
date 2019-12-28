@@ -192,17 +192,13 @@ class VehicleNet(object):
         dataiter = iter(self.imgData.trainloader)
         images, labels = dataiter.next()
 
-        imgs = []
-        for image in images:
-            " Np to Tensor and back... "
-            timg = transforms.ToTensor()(image)
-            imgs.append(timg.numpy())
-
         # create grid of images
-        img_grid = torchvision.utils.make_grid(imgs)
+        img_grid = torchvision.utils.make_grid(images)
+
+        imshow(img_grid)
 
         # write to tensorboard
-        self.writer.add_image('four_vehicle_images', img_grid)
+        self.writer.add_image('Four_Vehicle_Images', img_grid)
 
         self.writer.add_graph(self.network, images)
         self.writer.close()
