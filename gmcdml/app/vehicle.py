@@ -111,8 +111,6 @@ class CnvNet(nn.Module):
                                       self.plot_classes_preds(inputs, labels),
                                       global_step=step)
 
-                    self.logSampleEmbedding(step)
-
                     running_loss = 0.0
 
         print('Finished Training')
@@ -187,16 +185,6 @@ class VehicleNet(object):
 
     def saveNetwork(self):
         torch.save(self.network.state_dict(), MODEL_PATH)
-
-    def trainAndReport(self, iterations=1, clearlogs=True):
-        if clearlogs:
-            clear_prior_runs(BOARD_PATH)
-        self.logSampleImages()
-        self.network.trainNetwork(iterations, self.imgData.trainloader, self.optimizer, self.criterion, self.writer)
-        self.saveNetwork()
-        self.network.testNetworkSet(self.imgData.testloader)
-        self.network.classAccuracy(self.imgData.testloader)
-        self.add_precision_recall()
 
     def logSampleImages(self):
 
@@ -286,3 +274,15 @@ class VehicleNet(object):
         # plot all the pr curves
         for i in range(len(self.network.classes)):
             self.add_pr_curve_tensorboard(i, test_probs, test_preds)
+
+    def trainAndReport(self, iterations=1, clearlogs=True):
+        if clearlogs:
+            clear_prior_runs(BOARD_PATH)
+        self.logSampleImages()
+        self.logSampleEmbedding()
+        self.network.trainNetwork(iterations, self.imgData.trainloader, self.optimizer, self.criterion, self.writer)
+        self.saveNetwork()
+        self.network.testNetworkSet(self.imgData.testloader)
+        self.network.classAccuracy(self.imgData.testloader)
+        self.add_precision_recall()
+
