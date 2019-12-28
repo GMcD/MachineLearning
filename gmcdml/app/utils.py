@@ -33,15 +33,13 @@ def rgbshow(img):
     plt.imshow(rgb)
     plt.show()
 
-def imshow(img):
-    """
-    Used in TensorBoard
-    :param img:
-    :return:
-    """
+def imadd(img):
     img = img / 2 + 0.5     # unnormalize
     npimg = img
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+def imshow(img):
+    imadd(img)
     plt.show()
 
 def select_n_random(data, labels, n=100):

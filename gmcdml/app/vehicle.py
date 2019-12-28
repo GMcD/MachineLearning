@@ -8,7 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 import torchvision
 
-from gmcdml.app.utils import imshow, select_n_random, cifar2rgb, three_sample_images, show_image_grid
+from gmcdml.app.utils import imshow, select_n_random, imadd
 from gmcdml.app.cifar10 import ImageData
 
 
@@ -59,15 +59,16 @@ class CnvNet(nn.Module):
         """
         preds, probs = self.images_to_probs(images)
         # plot the images in the batch, along with predicted and true labels
-        fig = plt.figure(figsize=(12, 48))
+        fig = plt.figure(figsize=(12, 4))
         for idx in np.arange(4):
             ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
-            imshow(images[idx])
+            imadd(images[idx])
             ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
                 self.classes[preds[idx]],
                 probs[idx] * 100.0,
                 self.classes[labels[idx]]),
                         color=("green" if preds[idx]==labels[idx].item() else "red"))
+        plt.show()
         return fig
 
     def trainNetwork(self, iterations, trainloader, optimizer, criterion, writer):
