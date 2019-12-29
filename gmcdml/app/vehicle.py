@@ -12,14 +12,13 @@ from gmcdml.app.utils import (
     imshow,
     select_n_random,
     imadd,
-    get_global_step,
-    clear_prior_runs )
+    get_run_path )
 from gmcdml.app.cifar10 import ImageData
 
 
 MODEL_PATH = './cifar_net.pth'
 # default `log_dir` is "runs" - we'll be more specific here
-BOARD_PATH = 'runs/cifar_1'
+BOARD_ROOT = 'runs/vehiclenet'
 
 class CnvNet(nn.Module):
 
@@ -109,7 +108,45 @@ class CnvNet(nn.Module):
                               global_step=step)
         writer.close()
 
-    def trainNetwork(self, iterations, trainloader, trainset, optimizer, criterion, writer):
+    # helper function
+    def add_pr_curve_tensorboard(self, class_index, test_probs, test_preds, writer, step):
+        '''
+        Takes in a "class_index" from 0 to 9 and plots the corresponding
+        precision-recall curve
+        '''
+        tensorboard_preds = test_preds == class_index
+        tensorboard_probs = test_probs[:, class_index]
+
+        writer.add_pr_curve(self.classes[class_index],
+                            tensorboard_preds,
+                            tensorboard_probs,
+                            global_step=step)
+        writer.close()
+
+    def add_precision_recall(self, testloader, writer, step):
+        # 1. gets the probability predictions in a test_size x num_classes Tensor
+        # 2. gets the preds in a test_size Tensor
+        # takes ~10 seconds to run
+        class_probs = []
+        class_preds = []
+        with torch.no_grad():
+            for data in testloader:
+                images, labels = data
+                output = self(images)
+                class_probs_batch = [F.softmax(el, dim=0) for el in output]
+                _, class_preds_batch = torch.max(output, 1)
+
+                class_probs.append(class_probs_batch)
+                class_preds.append(class_preds_batch)
+
+        test_probs = torch.cat([torch.stack(batch) for batch in class_probs])
+        test_preds = torch.cat(class_preds)
+
+        # plot all the pr curves
+        for i in range(len(self.classes)):
+            self.add_pr_curve_tensorboard(i, test_probs, test_preds, writer, step)
+
+    def trainNetwork(self, iterations, trainloader, trainset, testloader, optimizer, criterion, writer):
         """ loop over the dataset multiple times """
         for epoch in range(iterations):  #
 
@@ -147,6 +184,8 @@ class CnvNet(nn.Module):
                     writer.close()
 
                     self.logStepEmbedding(trainset, writer, step)
+
+                    self.add_precision_recall(testloader, writer, step)
 
                     running_loss = 0.0
 
@@ -198,6 +237,10 @@ class CnvNet(nn.Module):
 
 class VehicleNet(object):
 
+    def getWriter(self, clearruns):
+        run_path = get_run_path(BOARD_ROOT, clearruns)
+        return SummaryWriter(run_path)
+
     def setOptimizer(self):
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.network.parameters(), lr=0.001, momentum=0.9)
@@ -209,8 +252,8 @@ class VehicleNet(object):
     def setNetwork(self):
         self.network = CnvNet()
 
-    def __init__(self):
-        self.writer = SummaryWriter(BOARD_PATH)
+    def __init__(self, clearruns=False):
+        self.writer = self.getWriter(clearruns)
         self.setNetwork()
         self.setImageData()
         self.setOptimizer()
@@ -230,8 +273,8 @@ class VehicleNet(object):
         images, labels = dataiter.next()
 
         # Why are we getting Tensors here?
-        print ( images.size() )
-        images.reshape(4, 32, 32, 3)
+        # print ( images.size() )
+        # images.reshape(4, 32, 32, 3)
         # create grid of images
         img_grid = torchvision.utils.make_grid(images)
 
@@ -242,51 +285,14 @@ class VehicleNet(object):
         self.writer.add_graph(self.network, images)
         self.writer.close()
 
-    # helper function
-    def add_pr_curve_tensorboard(self, class_index, test_probs, test_preds, global_step=0):
-        '''
-        Takes in a "class_index" from 0 to 9 and plots the corresponding
-        precision-recall curve
-        '''
-        tensorboard_preds = test_preds == class_index
-        tensorboard_probs = test_probs[:, class_index]
-
-        self.writer.add_pr_curve(self.network.classes[class_index],
-                            tensorboard_preds,
-                            tensorboard_probs,
-                            global_step=global_step)
-        self.writer.close()
-
-    def add_precision_recall(self):
-        # 1. gets the probability predictions in a test_size x num_classes Tensor
-        # 2. gets the preds in a test_size Tensor
-        # takes ~10 seconds to run
-        class_probs = []
-        class_preds = []
-        with torch.no_grad():
-            for data in self.imgData.testloader:
-                images, labels = data
-                output = self.network(images)
-                class_probs_batch = [F.softmax(el, dim=0) for el in output]
-                _, class_preds_batch = torch.max(output, 1)
-
-                class_probs.append(class_probs_batch)
-                class_preds.append(class_preds_batch)
-
-        test_probs = torch.cat([torch.stack(batch) for batch in class_probs])
-        test_preds = torch.cat(class_preds)
-
-        # plot all the pr curves
-        for i in range(len(self.network.classes)):
-            self.add_pr_curve_tensorboard(i, test_probs, test_preds)
-
-    def trainAndReport(self, iterations=1, clearlogs=True):
-        if clearlogs:
-            clear_prior_runs(BOARD_PATH)
+    def trainAndReport(self, iterations=1):
         self.logSampleImages()
-        self.network.trainNetwork(iterations, self.imgData.trainloader, self.imgData.trainset, self.optimizer, self.criterion, self.writer)
+        self.network.trainNetwork(iterations,
+                                  self.imgData.trainloader, self.imgData.trainset,
+                                  self.imgData.testloader,
+                                  self.optimizer, self.criterion,
+                                  self.writer)
         self.saveNetwork()
         self.network.testNetworkSet(self.imgData.testloader)
         self.network.classAccuracy(self.imgData.testloader)
-        self.add_precision_recall()
 

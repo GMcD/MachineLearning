@@ -100,16 +100,17 @@ def three_different_tensor_images():
     timg3 = torch.tensor(rgb3).reshape(32*32, 3).transpose(1,0).reshape(3,32,32)
     return (timg1, timg2, timg3)
 
-def clear_prior_runs(path):
-    shutil.rmtree(path)
+def get_run_path(path, clearruns):
+    if clearruns:
+        shutil.rmtree(path)
 
-@functools.lru_cache(maxsize=1)
-def get_global_step(path):
     runs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), path)
-    regexp = "{}/{}".format(runs, "[0-9]*")
-    steps = glob.glob(regexp)
-    if len(steps) == 0:
-        return 0
+    if not os.path.exists(runs):
+        return os.path.join(path, "1")
+    steps = os.listdir(runs)
+    if len(runs) == 0:
+        return os.path.join(path, "1")
     runs = [r.split('/')[-1:][0] for r in steps]
-    last_step = max(runs)
-    return int(last_step) + 1
+    next_run = str(int(max(runs)) + 1)
+    print ( "Starting Run {}".format(next_run))
+    return os.path.join(path, next_run)
