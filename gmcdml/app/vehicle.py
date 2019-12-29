@@ -76,7 +76,40 @@ class CnvNet(nn.Module):
         plt.show()
         return fig
 
-    def trainNetwork(self, iterations, trainloader, optimizer, criterion, writer):
+    def logStepEmbedding(self, trainset, writer, step):
+        n = 100
+        # select random images and their target indices
+        images, labels = select_n_random(trainset.data, trainset.targets, n)
+
+        # get the class labels for each image
+        class_labels = [self.classes[lab] for lab in labels]
+
+        # label images
+        imgs = []
+        for image in images:
+            " Np to Tensor "
+            timg = transforms.ToTensor()(image)
+            imgs.append(timg)
+        label_images = torch.stack(imgs)
+
+        # feature images
+        imgs = []
+        idx = 0
+        for image in images:
+            " Np to Feature "
+            fimg = torch.tensor(image)
+            imgs.append(fimg)
+        feature_images = torch.stack(imgs)
+        features = feature_images.view(-1, 3 * 32 * 32)
+
+        # log embeddings
+        writer.add_embedding(features,
+                              metadata=class_labels,
+                              label_img=label_images,
+                              global_step=step)
+        writer.close()
+
+    def trainNetwork(self, iterations, trainloader, trainset, optimizer, criterion, writer):
         """ loop over the dataset multiple times """
         for epoch in range(iterations):  #
 
@@ -110,6 +143,10 @@ class CnvNet(nn.Module):
                     writer.add_figure('predictions vs. actuals',
                                       self.plot_classes_preds(inputs, labels),
                                       global_step=step)
+
+                    writer.close()
+
+                    self.logStepEmbedding(trainset, writer, step)
 
                     running_loss = 0.0
 
@@ -192,46 +229,18 @@ class VehicleNet(object):
         dataiter = iter(self.imgData.trainloader)
         images, labels = dataiter.next()
 
+        # Why are we getting Tensors here?
+        print ( images.size() )
+        images.reshape(4, 32, 32, 3)
         # create grid of images
         img_grid = torchvision.utils.make_grid(images)
 
         imshow(img_grid)
 
         # write to tensorboard
-        self.writer.add_image('Four_Vehicle_Images', img_grid)
+        self.writer.add_image('four_vehicle_images', img_grid)
         self.writer.add_graph(self.network, images)
-
-    def logSampleEmbedding(self, step):
-        n = 100
-        # select random images and their target indices
-        images, labels = select_n_random(self.imgData.trainset.data, self.imgData.trainset.targets, n)
-
-        # get the class labels for each image
-        class_labels = [self.network.classes[lab] for lab in labels]
-
-        # label images
-        imgs = []
-        for image in images:
-            " Np to Tensor "
-            timg = transforms.ToTensor()(image)
-            imgs.append(timg)
-        label_images = torch.stack(imgs)
-
-        # feature images
-        imgs = []
-        idx = 0
-        for image in images:
-            " Np to Feature "
-            fimg = torch.tensor(image)
-            imgs.append(fimg)
-        feature_images = torch.stack(imgs)
-        features = feature_images.view(-1, 3 * 32 * 32)
-
-        # log embeddings
-        self.writer.add_embedding(features,
-                              metadata=class_labels,
-                              label_img=label_images,
-                              global_step=step)
+        self.writer.close()
 
     # helper function
     def add_pr_curve_tensorboard(self, class_index, test_probs, test_preds, global_step=0):
@@ -246,6 +255,7 @@ class VehicleNet(object):
                             tensorboard_preds,
                             tensorboard_probs,
                             global_step=global_step)
+        self.writer.close()
 
     def add_precision_recall(self):
         # 1. gets the probability predictions in a test_size x num_classes Tensor
@@ -274,11 +284,9 @@ class VehicleNet(object):
         if clearlogs:
             clear_prior_runs(BOARD_PATH)
         self.logSampleImages()
-        self.logSampleEmbedding(0)
-        self.network.trainNetwork(iterations, self.imgData.trainloader, self.optimizer, self.criterion, self.writer)
+        self.network.trainNetwork(iterations, self.imgData.trainloader, self.imgData.trainset, self.optimizer, self.criterion, self.writer)
         self.saveNetwork()
         self.network.testNetworkSet(self.imgData.testloader)
         self.network.classAccuracy(self.imgData.testloader)
         self.add_precision_recall()
-        self.writer.close()
 
