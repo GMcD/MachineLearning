@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set +x
+
 if [ $# -lt 2 ]; then
   echo "Usage: ./deply.sh VER MESSAGE..."
   exit 1
@@ -9,9 +11,15 @@ VER=$1
 MSG=$2
 
 if ! [ $(grep $VER setup.py) ]; then
-  echo "Update setup.py with $VER..."
+  echo "Update setup.py with this $VER..."
   exit
 fi
+
+if ! [ "$(grep $VER GMcD_ML.ipynb)" ]; then
+  echo "Update GMcD_ML.ipynb with this $VER..."
+  exit
+fi
+
 
 make package
 git add .
