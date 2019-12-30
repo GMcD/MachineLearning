@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import os, shutil
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,14 +12,89 @@ import torchvision
 from gmcdml.app.utils import (
     imshow,
     select_n_random,
-    imadd,
-    get_run_path )
+    imadd )
 from gmcdml.app.cifar10 import ImageData
 
-
-MODEL_PATH = './cifar_net.pth'
-# default `log_dir` is "runs" - we'll be more specific here
+" Location of saved models "
+MODEL_PATH = 'models/vehiclenet'
+" model file name "
+MODEL_NAME = 'vehiclenet.pth'
+" TensorBoard run data"
 BOARD_ROOT = 'runs/vehiclenet'
+" Training Set Size "
+TRAINING_SET = 10000
+
+class State(object):
+
+    def __init__(self, clearstate=True):
+        self.root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        self.model_dir = os.path.join(self.root, MODEL_PATH)
+        self.run_dir = os.path.join(self.root, BOARD_ROOT)
+
+        if clearstate:
+            self.clear()
+
+        if not os.path.exists(self.model_dir):
+            os.makedirs(self.model_dir)
+        if not os.path.exists(self.run_dir):
+            os.makedirs(self.run_dir)
+
+    def clear(self):
+        " Remove all state, and recreate empty folders "
+        if os.path.exists(self.model_dir):
+            shutil.rmtree(self.model_dir)
+        os.makedirs(self.model_dir)
+        if os.path.exists(self.run_dir):
+            shutil.rmtree(self.run_dir)
+        os.makedirs(self.run_dir)
+
+    def last_run(self) -> int:
+        past_runs = os.listdir(self.run_dir)
+        if len(past_runs) == 0:
+            return 0
+        run_ids = [r.split('/')[-1:][0] for r in past_runs]
+        last_run = int(max(run_ids))
+        return last_run
+
+    def next_run(self) -> int:
+        return self.last_run() + 1
+
+    def last_model(self) -> int:
+        return self.last_run()
+
+    def this_model(self) -> int:
+        return self.next_run()
+
+    def next_run_path(self) -> str:
+        " create a new folder and return "
+        path = os.path.join(self.run_dir, str(self.next_run()))
+        if not os.path.exists(path):
+            os.makedirs(path)
+        return path
+
+    def last_model_short(self) -> str:
+        lmp = self.last_model_path()
+        return "/".join(lmp.split('/')[-3:]) if lmp else "None"
+
+    def last_model_path(self) -> str:
+        " return existing model file "
+        m = self.last_model()
+        if m < 1:
+            return None
+        path = os.path.join(self.model_dir, str(m), MODEL_NAME)
+        return path
+
+    def this_model_path(self) -> str:
+        " Return a new folder, and file path within that folder "
+        path = os.path.join(self.model_dir, str(self.this_model()))
+        if not os.path.exists(path):
+            os.makedirs(path)
+        model_path = os.path.join(path, MODEL_NAME)
+        return model_path
+
+    def get_offset(self) -> int:
+        off = (self.last_run() -1 ) * TRAINING_SET
+        return off
 
 class CnvNet(nn.Module):
 
@@ -146,7 +222,7 @@ class CnvNet(nn.Module):
         for i in range(len(self.classes)):
             self.add_pr_curve_tensorboard(i, test_probs, test_preds, writer, step)
 
-    def trainNetwork(self, iterations, trainloader, trainset, testloader, optimizer, criterion, writer):
+    def trainNetwork(self, iterations, samples, run, offset, trainloader, trainset, testloader, optimizer, criterion, writer):
         """ loop over the dataset multiple times """
         for epoch in range(iterations):  #
 
@@ -166,14 +242,13 @@ class CnvNet(nn.Module):
 
                 # print statistics
                 running_loss += loss.item()
-                if i % 2000 == 1999:  # print every 2000 mini-batches
-                    print('[%d, %5d] loss: %.3f' % (epoch + 1, i + 1, running_loss / 2000))
-                    step = epoch * len(trainloader) + i
+                if i % samples == samples -1 :  # print every SAMPLE_SIZE mini-batches
+                    print('%d: [%d, %5d] loss: %.3f' % (run, epoch + 1, offset + i + 1, running_loss / samples))
+
+                    step = offset + epoch * len(trainloader) + i
 
                     # ...log the running loss
-                    writer.add_scalar('training loss',
-                                      running_loss / 2000,
-                                      step)
+                    writer.add_scalar('training loss', running_loss / samples, step)
 
                     # ...log a Matplotlib Figure showing the model's predictions on a
                     # random mini-batch
@@ -237,9 +312,39 @@ class CnvNet(nn.Module):
 
 class VehicleNet(object):
 
-    def getWriter(self, clearruns):
-        run_path = get_run_path(BOARD_ROOT, clearruns)
-        return SummaryWriter(run_path)
+    def getState(self, clearstate):
+        self.state = State(clearstate=clearstate)
+
+        self.last_model_path = self.state.last_model_path()
+        self.last_model_short = self.state.last_model_short()
+        self.this_model_path = self.state.this_model_path()
+        self.next_run_path = self.state.next_run_path()
+        self.run = self.state.next_run() - 1
+        self.offset = self.state.get_offset()
+
+        self.writer = SummaryWriter(self.next_run_path)
+        self.setNetwork()
+
+    def setNetwork(self):
+        try:
+            self.loadNetwork()
+        except Exception as ex:
+            print("Starting clean Model ({})".format(ex))
+            self.network = CnvNet()
+
+    def loadNetwork(self):
+        cnvnet = CnvNet()
+        print("Trying Model State at {} at offset {}.".format(self.last_model_path, self.offset))
+        last_model = self.last_model_path
+        cnvnet.load_state_dict(torch.load(last_model))
+        print( "Loading Model State from {} at offset {}.".format(self.last_model_short, self.offset))
+        self.network = cnvnet
+
+    def saveNetwork(self):
+        this_model = self.this_model_path
+        state = self.network.state_dict()
+        print("Writing Model State to {}".format(this_model))
+        torch.save(state, this_model)
 
     def setOptimizer(self):
         self.criterion = nn.CrossEntropyLoss()
@@ -249,22 +354,10 @@ class VehicleNet(object):
         self.imgData = ImageData()
         self.imgData.downloadImages()
 
-    def setNetwork(self):
-        self.network = CnvNet()
-
-    def __init__(self, clearruns=False):
-        self.writer = self.getWriter(clearruns)
-        self.setNetwork()
+    def __init__(self, clearstate=False):
+        self.getState(clearstate)
         self.setImageData()
         self.setOptimizer()
-
-    def loadNetwork(self):
-        cnvnet = CnvNet()
-        cnvnet.load_state_dict(torch.load(MODEL_PATH))
-        self.network = cnvnet
-
-    def saveNetwork(self):
-        torch.save(self.network.state_dict(), MODEL_PATH)
 
     def logSampleImages(self):
 
@@ -285,9 +378,12 @@ class VehicleNet(object):
         self.writer.add_graph(self.network, images)
         self.writer.close()
 
-    def trainAndReport(self, iterations=1):
-        self.logSampleImages()
+    def trainAndReport(self, iterations=1, samples=2000):
+        # self.logSampleImages()
         self.network.trainNetwork(iterations,
+                                  samples,
+                                  self.run,
+                                  self.offset,
                                   self.imgData.trainloader, self.imgData.trainset,
                                   self.imgData.testloader,
                                   self.optimizer, self.criterion,

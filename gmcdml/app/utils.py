@@ -100,17 +100,29 @@ def three_different_tensor_images():
     timg3 = torch.tensor(rgb3).reshape(32*32, 3).transpose(1,0).reshape(3,32,32)
     return (timg1, timg2, timg3)
 
-def get_run_path(path, clearruns):
-    if clearruns:
-        shutil.rmtree(path)
+def get_paths(models, runs, clearstate):
+    if clearstate and os.path.exists(runs):
+        shutil.rmtree(runs)
+    if clearstate and os.path.exists(models):
+        shutil.rmtree(models)
 
-    runs = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), path)
+    root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    run_dir = os.path.join(root, runs)
     if not os.path.exists(runs):
-        return os.path.join(path, "1")
-    steps = os.listdir(runs)
-    if len(runs) == 0:
-        return os.path.join(path, "1")
-    runs = [r.split('/')[-1:][0] for r in steps]
-    next_run = str(int(max(runs)) + 1)
+        return os.path.join(runs, "1"), None, False
+    logs = os.listdir(run_dir)
+    if len(logs) == 0:
+        return os.path.join(run_dir, "1"), None, False
+    runs = [r.split('/')[-1:][0] for r in logs]
+    last_run = int(max(runs))
+    next_run = last_run + 1
+    last_model = os.path.join(root, models, str(last_run))
+    next_run = os.path.join(run_dir, str(next_run))
     print ( "Starting Run {}".format(next_run))
-    return os.path.join(path, next_run)
+    if os.path.exists(last_model):
+        print ( "With Model {}".format(last_model))
+        exists = True
+    else:
+        last_model = os.path.join(root, models, str(last_run))
+        exists = False
+    return next_run, last_model, exists

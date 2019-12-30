@@ -2,6 +2,7 @@
 .idea
 /data
 /runs
+/models
 *.pth
 
 
