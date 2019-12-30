@@ -26,8 +26,14 @@ TRAINING_SET = 10000
 
 class State(object):
 
+    def content_dir(self) -> str:
+        if os.path.exists("/content"):
+            return "/content"
+        else:
+            return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
     def __init__(self, clearstate=True):
-        self.root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        self.root = self.content_dir()
         self.model_dir = os.path.join(self.root, MODEL_PATH)
         self.run_dir = os.path.join(self.root, BOARD_ROOT)
 
