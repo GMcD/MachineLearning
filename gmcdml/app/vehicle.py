@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-import os, shutil
+import os, shutil, glob
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -99,8 +99,17 @@ class State(object):
         return model_path
 
     def get_offset(self) -> int:
-        off = (self.last_run() -1 ) * TRAINING_SET
-        return off
+        last_steps = os.path.join(self.run_dir, str(self.last_run() - 1))
+        if not os.path.exists(last_steps):
+            return 0
+        steps_path = os.path.join(last_steps, "[0-9]*")
+        steps_logs = glob.glob(steps_path)
+        if not len(steps_logs):
+            return 0
+        steps = [r.split('/')[-1:][0] for r in steps_logs]
+        last_step = int(max(steps))
+        next_step = last_step + 1
+        return next_step
 
 class CnvNet(nn.Module):
 
@@ -245,10 +254,10 @@ class CnvNet(nn.Module):
                 loss = criterion(outputs, labels)
                 loss.backward()
                 optimizer.step()
-
-                # print statistics
                 running_loss += loss.item()
-                if i % samples == samples -1 :  # print every SAMPLE_SIZE mini-batches
+
+                # print statistics every SAMPLE_SIZE mini-batches
+                if i % samples == samples - 1 :
                     print('%d: [%d, %5d] loss: %.3f' % (run, epoch + 1, offset + i + 1, running_loss / samples))
 
                     step = offset + epoch * len(trainloader) + i
@@ -256,8 +265,7 @@ class CnvNet(nn.Module):
                     # ...log the running loss
                     writer.add_scalar('training loss', running_loss / samples, step)
 
-                    # ...log a Matplotlib Figure showing the model's predictions on a
-                    # random mini-batch
+                    # ...log a Matplotlib Figure showing the model's predictions on a random mini-batch
                     writer.add_figure('predictions vs. actuals',
                                       self.plot_classes_preds(inputs, labels),
                                       global_step=step)
@@ -328,21 +336,20 @@ class VehicleNet(object):
         self.run = self.state.next_run() - 1
         self.offset = self.state.get_offset()
 
+        print("Starting Run at {}, ({},{})".format(self.next_run_path, self.run, self.offset))
         self.writer = SummaryWriter(self.next_run_path)
         self.setNetwork()
 
     def setNetwork(self):
-        try:
+        if self.last_model_path:
             self.loadNetwork()
-        except Exception as ex:
-            print("Starting clean Model ({})".format(ex))
+        else:
+            print("Starting Model afresh..")
             self.network = CnvNet()
 
     def loadNetwork(self):
         cnvnet = CnvNet()
-        print("Trying Model State at {} at offset {}.".format(self.last_model_path, self.offset))
-        last_model = self.last_model_path
-        cnvnet.load_state_dict(torch.load(last_model))
+        cnvnet.load_state_dict(torch.load(self.last_model_path))
         print( "Loading Model State from {} at offset {}.".format(self.last_model_short, self.offset))
         self.network = cnvnet
 
