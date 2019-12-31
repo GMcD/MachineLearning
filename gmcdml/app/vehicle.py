@@ -237,7 +237,7 @@ class CnvNet(nn.Module):
         for i in range(len(self.classes)):
             self.add_pr_curve_tensorboard(i, test_probs, test_preds, writer, step)
 
-    def trainNetwork(self, iterations, samples, run, offset, trainloader, trainset, testloader, optimizer, criterion, writer):
+    def trainNetwork(self, iterations, samples, run, offset, trainloader, trainset, testloader, optimizer, criterion, writer) -> int:
         """ loop over the dataset multiple times """
         for epoch in range(iterations):  #
 
@@ -279,6 +279,7 @@ class CnvNet(nn.Module):
                     running_loss = 0.0
 
         print('Finished Training')
+        return step
 
     def testNetworkSample(self, testloader):
         dataiter = iter(testloader)
@@ -368,6 +369,7 @@ class VehicleNet(object):
         self.imgData.downloadImages()
 
     def __init__(self, clearstate=False):
+        self.offset = 0
         self.getState(clearstate)
         self.setImageData()
         self.setOptimizer()
@@ -393,7 +395,7 @@ class VehicleNet(object):
 
     def trainAndReport(self, iterations=1, samples=2000):
         # self.logSampleImages()
-        self.network.trainNetwork(iterations,
+        self.offset = self.network.trainNetwork(iterations,
                                   samples,
                                   self.run,
                                   self.offset,
