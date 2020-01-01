@@ -10,5 +10,9 @@ args = parser.parse_args()
 from gmcdml.app.vehicle import VehicleNet
 
 if __name__ == '__main__':
-    vn = VehicleNet(clearstate=args.clearstate)
+    vn = VehicleNet()
+    if args.clearstate:
+        vn.clearState()
     vn.trainAndReport(iterations=args.iterations, samples=args.samples)
+    vn.trainAndReport(iterations=2, samples=args.samples)
+    vn.trainAndReport(iterations=1, samples=args.samples)

@@ -24,6 +24,18 @@ BOARD_ROOT = 'runs/vehiclenet'
 " Training Set Size "
 TRAINING_SET = 10000
 
+class ModelState(object):
+    last_model_path : str
+    last_model_short : str
+    this_model_path : str
+    next_run_path : str
+    run : int
+    step : int
+
+    def __str__(self):
+        return "Next Run : {} at ({}, {})\n   From  : {}\n   To    : {}"\
+            .format(self.next_run_path, self.run, self.step, self.last_model_path, self.this_model_path)
+
 class State(object):
 
     def content_dir(self) -> str:
@@ -32,13 +44,10 @@ class State(object):
         else:
             return os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
-    def __init__(self, clearstate=True):
+    def __init__(self):
         self.root = self.content_dir()
         self.model_dir = os.path.join(self.root, MODEL_PATH)
         self.run_dir = os.path.join(self.root, BOARD_ROOT)
-
-        if clearstate:
-            self.clear()
 
         if not os.path.exists(self.model_dir):
             os.makedirs(self.model_dir)
@@ -58,8 +67,11 @@ class State(object):
         past_runs = os.listdir(self.run_dir)
         if len(past_runs) == 0:
             return 0
-        run_ids = [r.split('/')[-1:][0] for r in past_runs]
-        last_run = int(max(run_ids))
+        run_ids = [int(r.split('/')[-1:][0]) for r in past_runs]
+        last_run = max(run_ids)
+        path = os.path.join(self.run_dir, str(last_run))
+        if not os.listdir(path):
+            last_run = last_run - 1
         return last_run
 
     def next_run(self) -> int:
@@ -73,10 +85,7 @@ class State(object):
 
     def next_run_path(self) -> str:
         " create a new folder and return "
-        path = os.path.join(self.run_dir, str(self.next_run()))
-        if not os.path.exists(path):
-            os.makedirs(path)
-        return path
+        return os.path.join(self.run_dir, str(self.next_run()))
 
     def last_model_short(self) -> str:
         lmp = self.last_model_path()
@@ -99,7 +108,7 @@ class State(object):
         return model_path
 
     def get_offset(self) -> int:
-        last_steps = os.path.join(self.run_dir, str(self.last_run() - 1))
+        last_steps = os.path.join(self.run_dir, str(self.last_run()))
         if not os.path.exists(last_steps):
             return 0
         steps_path = os.path.join(last_steps, "[0-9]*")
@@ -110,6 +119,16 @@ class State(object):
         last_step = int(max(steps))
         next_step = last_step + 1
         return next_step
+
+    def get_model_state(self) -> ModelState :
+        ms = ModelState()
+        ms.last_model_path = self.last_model_path()
+        ms.last_model_short = self.last_model_short()
+        ms.this_model_path = self.this_model_path()
+        ms.next_run_path = self.next_run_path()
+        ms.run = self.next_run()
+        ms.step = self.get_offset()
+        return ms
 
 class CnvNet(nn.Module):
 
@@ -237,8 +256,10 @@ class CnvNet(nn.Module):
         for i in range(len(self.classes)):
             self.add_pr_curve_tensorboard(i, test_probs, test_preds, writer, step)
 
-    def trainNetwork(self, iterations, samples, run, offset, trainloader, trainset, testloader, optimizer, criterion, writer) -> int:
+    def trainNetwork(self, iterations, samples, run, start, trainloader, trainset, testloader, optimizer, criterion, writer) -> int:
         """ loop over the dataset multiple times """
+        print('Starting Training at run {} step {}'.format(run, start))
+        step = start
         for epoch in range(iterations):  #
 
             running_loss = 0.0
@@ -257,18 +278,17 @@ class CnvNet(nn.Module):
                 running_loss += loss.item()
 
                 # print statistics every SAMPLE_SIZE mini-batches
+                step = step + 1
                 if i % samples == samples - 1 :
-                    print('%d: [%d, %5d] loss: %.3f' % (run, epoch + 1, offset + i + 1, running_loss / samples))
-
-                    step = offset + epoch * len(trainloader) + i
+                    print('%d: [%d, %5d] loss: %.3f' % (run, epoch + 1, step, running_loss / samples))
 
                     # ...log the running loss
                     writer.add_scalar('training loss', running_loss / samples, step)
 
                     # ...log a Matplotlib Figure showing the model's predictions on a random mini-batch
-                    writer.add_figure('predictions vs. actuals',
-                                      self.plot_classes_preds(inputs, labels),
-                                      global_step=step)
+                    # writer.add_figure('predictions vs. actuals',
+                    #                   self.plot_classes_preds(inputs, labels),
+                    #                   global_step=step)
 
                     writer.close()
 
@@ -278,7 +298,7 @@ class CnvNet(nn.Module):
 
                     running_loss = 0.0
 
-        print('Finished Training')
+        print('Finished Training at run {} step {}'.format(run, step))
         return step
 
     def testNetworkSample(self, testloader):
@@ -327,52 +347,61 @@ class CnvNet(nn.Module):
 
 class VehicleNet(object):
 
-    def getState(self, clearstate):
-        self.state = State(clearstate=clearstate)
+    def getState(self) :
+        self.state = State()
+        self.model = self.state.get_model_state()
 
-        self.last_model_path = self.state.last_model_path()
-        self.last_model_short = self.state.last_model_short()
-        self.this_model_path = self.state.this_model_path()
-        self.next_run_path = self.state.next_run_path()
-        self.run = self.state.next_run() - 1
-        self.offset = self.state.get_offset()
-
-        print("Starting Run at {}, ({},{})".format(self.next_run_path, self.run, self.offset))
-        self.writer = SummaryWriter(self.next_run_path)
+    def clearState(self):
+        """
+        Clear any persistent state, and reinitialise from a blank state
+        :return:
+        """
+        self.state.clear()
+        self.getState()
         self.setNetwork()
 
-    def setNetwork(self):
-        if self.last_model_path:
-            self.loadNetwork()
-        else:
-            print("Starting Model afresh..")
-            self.network = CnvNet()
-
-    def loadNetwork(self):
-        cnvnet = CnvNet()
-        cnvnet.load_state_dict(torch.load(self.last_model_path))
-        print( "Loading Model State from {} at offset {}.".format(self.last_model_short, self.offset))
-        self.network = cnvnet
-
-    def saveNetwork(self):
-        this_model = self.this_model_path
-        state = self.network.state_dict()
-        print("Writing Model State to {}".format(this_model))
-        torch.save(state, this_model)
+    def setWriter(self):
+        path = self.model.next_run_path
+        if not os.path.exists(path):
+            os.makedirs(path)
+        self.writer = SummaryWriter(path)
 
     def setOptimizer(self):
         self.criterion = nn.CrossEntropyLoss()
         self.optimizer = optim.SGD(self.network.parameters(), lr=0.001, momentum=0.9)
 
+    def setNetwork(self):
+        if self.model.last_model_path and os.path.exists(self.model.last_model_path):
+            self.loadNetwork()
+        else:
+            print("Starting Model afresh..")
+            self.state.clear()
+            self.getState()
+            self.network = CnvNet()
+        self.setOptimizer()
+
+    def loadNetwork(self):
+        cnvnet = CnvNet()
+        cnvnet.load_state_dict(torch.load(self.model.last_model_path))
+        print( "Loading Model State from {} at step {}.".format(self.model.last_model_short, self.model.step))
+        self.network = cnvnet
+
+    def saveNetwork(self):
+        this_model = self.model.this_model_path
+        state = self.network.state_dict()
+        print("Writing Model State to {}".format(this_model))
+        torch.save(state, this_model)
+
     def setImageData(self):
         self.imgData = ImageData()
         self.imgData.downloadImages()
 
-    def __init__(self, clearstate=False):
-        self.offset = 0
-        self.getState(clearstate)
+    def __init__(self):
+        self.getState()
+        print("Starting Run at {}, ({},{})".format(self.model.next_run_path, self.model.run, self.model.step))
+        self.setNetwork()
+
         self.setImageData()
-        self.setOptimizer()
 
     def logSampleImages(self):
 
@@ -395,14 +424,16 @@ class VehicleNet(object):
 
     def trainAndReport(self, iterations=1, samples=2000):
         # self.logSampleImages()
-        self.offset = self.network.trainNetwork(iterations,
+        self.setWriter()
+        self.network.trainNetwork(iterations,
                                   samples,
-                                  self.run,
-                                  self.offset,
+                                  self.model.run,
+                                  self.model.step,
                                   self.imgData.trainloader, self.imgData.trainset,
                                   self.imgData.testloader,
                                   self.optimizer, self.criterion,
                                   self.writer)
+        self.getState()
         self.saveNetwork()
         self.network.testNetworkSet(self.imgData.testloader)
         self.network.classAccuracy(self.imgData.testloader)
