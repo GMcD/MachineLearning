@@ -7,39 +7,36 @@ import torchvision.transforms as transforms
 from torchvision.utils import make_grid
 
 def show_image_grid(imgs):
+    """
+    Show a grid of images
+    :param imgs:
+    :return:
+    """
     grd = make_grid(imgs)
     npimg = grd.numpy()
     plt.imshow(np.transpose(npimg, (1,2,0)), interpolation='nearest')
-    plt.show()
-
-def cifar2rgb(img_tensor):
-    """
-    Get numpy img, transpose tensor rep in, shuffle channels, and return
-    :param img: Tensor Image from CIFAR10
-    :return: None
-    """
-    img_tensor_denormalized = img_tensor / 2 + 0.5  # denormalize
-    npimg_gbr = img_tensor_denormalized.numpy() # tensor to Numpy
-    npimp_rgb = np.transpose(npimg_gbr, (1, 2, 0)) # 3, 32*32 to 32*32, 3
-    return npimp_rgb
-
-def rgbshow(img):
-    """
-    Get tensor image, convert to RGB and display
-    :param img: Tensor Image from CIFAR10
-    :return: None
-    """
-    rgb = cifar2rgb(img)
-    plt.imshow(rgb)
+    plt.ion()
     plt.show()
 
 def imadd(img):
+    """
+    Convert Tensor format image to NumPy format and add to matplotlib
+    :param img:
+    :return:
+    """
+
     img = img / 2 + 0.5     # unnormalize
     npimg = img
     plt.imshow(np.transpose(npimg, (1, 2, 0)))
 
 def imshow(img):
+    """
+    Convert and show image in matplotlib
+    :param img:
+    :return:
+    """
     imadd(img)
+    plt.ion()
     plt.show()
 
 def select_n_random(data, labels, n=100):
@@ -55,11 +52,19 @@ def select_n_random(data, labels, n=100):
     return data[:n], labels[:n]
 
 def samples_path():
+    """
+    Pasth to store sample images extracted from the CIFAR10 archive
+    :return:
+    """
     dir = os.path.dirname(os.path.abspath(__file__))
     samples = os.path.join(dir, 'samples')
     return samples
 
 def three_sample_images():
+    """
+    Extract CIFAR10 images and convert to PNG
+    :return:
+    """
     samples = samples_path()
     _truck = np.array(Image.open(os.path.join(samples, "truck.png")))
     _deer = np.array(Image.open(os.path.join(samples, "deer.png")))
@@ -70,6 +75,10 @@ def three_sample_images():
     return torch.stack([truck, deer, frog])
 
 def three_different_np_images():
+    """
+    Create test NumPy images
+    :return:
+    """
     rgb1 = np.zeros((32, 32, 3), dtype=np.uint8)
     rgb1[..., 0] = 192
     rgb1[..., 1] = 0
@@ -92,6 +101,10 @@ def three_different_np_images():
 
 
 def three_different_tensor_images():
+    """
+    Create 3 sample Tensor Images [(r,g,b),...] -> [(r,r,r,...), (g,g,g....), (b,b,b,....)]
+    :return:
+    """
     rgb1, rgb2, rgb3 = three_different_np_images()
 
     timg1 = torch.tensor(rgb1).reshape(32*32, 3).transpose(1,0).reshape(3,32,32)

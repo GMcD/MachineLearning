@@ -4,6 +4,9 @@ import torchvision.transforms as transforms
 from gmcdml.app.utils import imshow
 
 class ImageData(object):
+    """
+    Simple interface to download CIFAR10 dataset
+    """
 
     trainset = None
     trainloader = None
@@ -14,6 +17,10 @@ class ImageData(object):
     classes = ()
 
     def downloadImages(self):
+        """
+        Download and Normalize Images
+        :return:
+        """
         transform = transforms.Compose(
             [transforms.ToTensor(),
              transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
@@ -28,6 +35,10 @@ class ImageData(object):
 
 
     def showImages(self):
+        """
+        Display Images
+        :return:
+        """
         # get some random training images
         dataiter = iter(self.trainloader)
         images, labels = dataiter.next()
@@ -38,6 +49,10 @@ class ImageData(object):
         print(' '.join('%5s' % self.classes[labels[j]] for j in range(4)))
 
 def downloadAndShow():
+    """
+    Test Method
+    :return:
+    """
     id = ImageData()
     id.downloadImages()
     id.showImages()
