@@ -484,7 +484,7 @@ class VehicleNet(object):
 
     def __init__(self):
         """
-        Get state. setup[ network, and download data
+        Get state, setup[ network, and download data
         """
         self.getState()
         print(str(self.model))

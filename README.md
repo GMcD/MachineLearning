@@ -6,13 +6,16 @@ It is based initially on the [PyTorch Tutorial](https://pytorch.org/tutorials/be
 but develops that sample code with 
     * TensorBoard Integration, 
     * Persistent Model State, 
-    * PyPi package allowing pip install, and more.
+    * PyPi compatible package allowing pip install, and more.
     
 This python main module provides a simple command line interface to the API, 
 which is also available in the [GMcD_ML](https://github.com/GMcD/MachineLearning/blob/master/GMcD_ML.ipynb) 
 Jupyter notebook.
 
 [![Open in CoLab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/GMcD/MachineLearning/blob/master/GMcD_ML.ipynb)
+
+> If TensorBoard integration fails to show inline, try whitelisting CoLab and 
+> GoogleUserContent in Third Party Cookies.
 
 Scalars
 -------
@@ -21,7 +24,7 @@ TensorBoard integration logs the Training Loss scalar.
 
 Projections
 -----------
-Emmdeddings are logged during each training run.
+Embeddings are logged during each training run.
 
 ![](./samples/projections.png)
 
@@ -82,7 +85,7 @@ class VehicleNet(object):
 
     def __init__(self):
         """
-        Get state. setup[ network, and download data
+        Get state, setup network, and download data
         """
 
     def trainAndReport(self, iterations=1, samples=2000):
